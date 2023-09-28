@@ -1,0 +1,54 @@
+---
+layout: post
+title:  "Quick debugging log for the CH340 on Linux"
+date:   2023-09-28 21:21:00 +1000
+categories: electronics
+---
+Skip to the end for a less narrative TLDR.
+
+I'm working on a pendant right now, and as part of it I've been playing with ESP32s. I impulse-bought a dev-board from Jaycar - which, wonderfully, doesn't come with any documentation! Luckily, there's plenty online, but it's generic and a bit out of date. In particular, getting drivers setup for the CH340 serial-to-usb chip was harder than expected, so I thought write up a quick summary of how I got it working in case it helps anyone.
+
+For searchability's sake, the board is a [Duinotech ESP32 Wearable Development Board (part number: XC3810)](https://www.jaycar.com.au/duinotech-esp32-wearable-main-board/p/XC3810).
+
+<!-- I only buy Jaycar when I want a same-day project. Weirdly, they seem to have (more) reasonable prices on the products that lack documentation? An Arduino Nano clone is $40 (!), 4x the price I've seen elsewhere. On the other hand, this board seems comparable in price ($35) with other Australian ESP32-WROOM dev boards, but I can't find anything similar elsewhere. -->
+
+With that out of the way...
+
+## Setting up a CH340 drivers on Linux Mint in 2023.
+
+I'm using the Arduino IDE for this.
+
+First problem upon plugging in: nothing showed up in my ports section. I checked lsusb, and couldn't see anything. If this happens to you, try a different USB cable. Then try another. Pretty sure your USB cable isn't the problem? Try a couple more times. It took me about 5 different cables until I found one that worked, and turns out I'd wasted an hour of debugging time over it!
+
+Next up, we need the drivers. The CH340 drivers are no longer installed by default in Ubuntu or Mint. This can be downloaded from the [manufacturer's website](https://www.wch-ic.com/downloads/category/30.html) - this is the [latest version as of writing](https://www.wch-ic.com/downloads/CH341SER_LINUX_ZIP.html).
+
+A lot of websites say this driver doesn't work, but it's actually been patched since! It worked correctly, but the serial port wasn't recognised by arduino - I'm guessing because it makes the serial port `ttyCH340USB0` instead of `ttyusb0`? (I imagine there's a config you can change)
+
+The solution that worked was the patched version of the older drivers, found here: https://github.com/juliagoda/CH341SER
+
+Finally, as noted in the page above: there is a bug in brltty (a library for braille reader devices) that prevents the drivers from attaching to the chip. You either need to upgrade brltty to 6.5 or uninstall it.**Do not do this if you need a braille reader**, for obvious reasons.
+
+After changing all of this, it worked!
+
+## Generic ESP32 Programming
+One the drivers are installed and the port shows up in the Arudino IDE, the programming was quite simple. I used the official ESP32 library setup guide: [Installing using Arduino IDE.](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html#installing-using-arduino-ide)
+
+The one modification I required was installing pyserial manually. If you have `pip3` installed, this is as simple as `pip3 install pyserial`.
+
+One this was done, I simply set my board to ESP32 Dev Board and it worked! The lack of pinout messed with me for a while, but after checking with a continuity tester I found that the numbers on the board align with the GPIO pin numbers of the ESP32 pinout ([I used this for refrerence](https://i0.wp.com/randomnerdtutorials.com/wp-content/uploads/2018/08/esp32-pinout-chip-ESP-WROOM-32.png?quality=100&strip=all&ssl=1)).
+
+With that, everything worked!
+
+...shit, this display only works with 5V.
+
+## Summary
+If you're having issues with a CH340 (or probably CH341):
+
+* First, check lsusb to see if the board is connected. The best way is to run the command with the board plugged in and removed, and see if anything changes. 
+* If you don't see it, try a different cable and different USB ports. Keep trying cables until it shows up. It took me about 10 different cables before I found one that worked.
+* Next, install the CH340 drivers. Try the drivers from the manufacturer's website first: [here](https://www.wch-ic.com/downloads/category/30.html). If this doesn't work, try the older patched version. [https://github.com/juliagoda/CH341SER]( https://github.com/juliagoda/CH341SER)
+* Make sure your user is part of the `dialout` group. This can be done via `sudo usermod -a -G dialout $USER`.
+* Finally, you may need to uninstall brltty (**this is the braille reader daemon, so be careful if you require one!**).
+
+
+
